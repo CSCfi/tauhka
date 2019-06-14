@@ -59,8 +59,8 @@ class TauhkaTestCase(unittest.TestCase):
         }
         opts = webdriver.ChromeOptions()
         opts.add_experimental_option('perfLoggingPrefs', {
-            'enableNetwork' : True,
-            'enablePage' : True,
+            'enableNetwork': True,
+            'enablePage': True,
             'traceCategories': "browser,devtools.timeline,devtools"
         })
         opts.add_argument("--no-sandbox")
@@ -82,7 +82,8 @@ class TauhkaTestCase(unittest.TestCase):
             description = "Test Started"
         timestamp = time.time() - self.test_start_time
         self.memory_usage_at_start = int(self.memory_usage())
-        self.test_events.append((timestamp,
+        self.test_events.append((
+            timestamp,
             self.id(),
             "-",
             "-",
@@ -95,7 +96,8 @@ class TauhkaTestCase(unittest.TestCase):
             description = "Test Ended"
         timestamp = time.time() - self.test_start_time
         memory_diff, memory_end, memory_start = self.end_memory_measure()
-        self.test_events.append((timestamp,
+        self.test_events.append((
+            timestamp,
             self.id(),
             str(int(memory_start/1024)),
             str(int(memory_end/1024)),
@@ -110,7 +112,8 @@ class TauhkaTestCase(unittest.TestCase):
     def mark_memory_measure(self, description):
         timestamp = time.time() - self.test_start_time
         self.memory_usage_at_mark = int(self.memory_usage())
-        self.test_events.append((timestamp,
+        self.test_events.append((
+            timestamp,
             self.id(),
             "-",
             "-",
@@ -125,7 +128,8 @@ class TauhkaTestCase(unittest.TestCase):
     def diff_memory_measure_and_report(self, msg=None):
         timestamp = time.time() - self.test_start_time
         memory_diff, memory_end, memory_start = self.diff_memory_measure()
-        self.test_events.append((timestamp,
+        self.test_events.append((
+            timestamp,
             self.id(),
             str(int(memory_start/1024)),
             str(int(memory_end/1024)),
@@ -197,7 +201,8 @@ class TauhkaTestCase(unittest.TestCase):
                             requestPostData = self.driver.execute_cdp_cmd('Network.getRequestPostData', {'requestId': requestId})
                         except WebDriverException:
                             pass
-                        self.network_logs.append((timestamp,
+                        self.network_logs.append((
+                            timestamp,
                             requestId,
                             "=>",
                             request['method'],
@@ -322,6 +327,9 @@ class TauhkaTestCase(unittest.TestCase):
 
     def find_element_by_xpath(self, xpath):
         return self.driver.find_element_by_xpath(xpath)
+
+    def find_element_by_css(self, css_selector):
+        return self.driver.find_element_by_css_selector(css_selector)
 
     def find_element_by_class_name(self, classname):
         return self.driver.find_element_by_class_name(classname)
