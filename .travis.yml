@@ -1,0 +1,8 @@
+os: osx
+addons:
+  chrome: stable
+  homebrew:
+    packages:
+    - python@3
+script:
+- make check

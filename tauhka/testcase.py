@@ -47,6 +47,10 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 
 class TauhkaTestCase(unittest.TestCase):
+    def __init__(self, methodName='runTest'):
+        super().__init__(methodName)
+        self.webdriver = "./chromedriver"
+
     def setUp(self):
         self.memory_usage_at_start = None
         self.test_events = []
@@ -69,7 +73,7 @@ class TauhkaTestCase(unittest.TestCase):
             opts.add_argument("--headless")
         opts.add_argument("--enable-precise-memory-info")
         self.test_start_time = time.time() + 1.25
-        self.driver = webdriver.Chrome("./chromedriver", options=opts, desired_capabilities=caps)
+        self.driver = webdriver.Chrome(self.webdriver, options=opts, desired_capabilities=caps)
         self.wait = WebDriverWait(self.driver, 10)
 
     def with_memory_usage(self, description, fn, *args, **kwargs):
