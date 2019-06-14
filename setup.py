@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="tauhka",
-    version="0.0.1",
+    version="0.0.2",
     python_requires='>=3',
     install_requires=['selenium'],
     author="CSC - IT Center for Science Ltd.",

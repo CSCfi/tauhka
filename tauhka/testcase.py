@@ -41,7 +41,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
@@ -51,12 +51,6 @@ class TauhkaTestCase(unittest.TestCase):
         self.memory_usage_at_start = None
         self.test_events = []
         self.start_time = int(time.time())
-        self.netlogfile = "{testcase}-{testmethod}-{timestamp}-networktraffic.json".format(
-            timestamp=self.start_time,
-            testcase=self.__class__.__name__,
-            testmethod=self._testMethodName
-        )
-        self.netlogfiles.append(self.netlogfile)
 
         caps = DesiredCapabilities.CHROME.copy()
         caps['loggingPrefs'] = {
@@ -64,13 +58,16 @@ class TauhkaTestCase(unittest.TestCase):
             'performance': 'ALL',
         }
         opts = webdriver.ChromeOptions()
+        opts.add_experimental_option('perfLoggingPrefs', {
+            'enableNetwork' : True,
+            'enablePage' : True,
+            'traceCategories': "browser,devtools.timeline,devtools"
+        })
         opts.add_argument("--no-sandbox")
         opts.add_argument("--js-flags=--expose-gc")
         if "TEST_DEBUG" not in os.environ.keys():
             opts.add_argument("--headless")
         opts.add_argument("--enable-precise-memory-info")
-        opts.add_argument("--log-net-log={netlogfile}".format(netlogfile=self.netlogfile))
-        opts.add_argument("--net-log-capture-mode=IncludeSocketBytes")
         self.test_start_time = time.time() + 1.25
         self.driver = webdriver.Chrome("./chromedriver", options=opts, desired_capabilities=caps)
         self.wait = WebDriverWait(self.driver, 10)
@@ -82,26 +79,29 @@ class TauhkaTestCase(unittest.TestCase):
 
     def start_memory_measure(self, description=None):
         if not description:
-            description = "BEGIN"
+            description = "Test Started"
         timestamp = time.time() - self.test_start_time
         self.memory_usage_at_start = int(self.memory_usage())
-        self.test_events.append((timestamp, "{id} | {msg}".format(
-            id=self.id(),
-            msg=description
-        )))
+        self.test_events.append((timestamp,
+            self.id(),
+            "-",
+            "-",
+            "-",
+            description
+        ))
 
     def end_memory_measure_and_report(self, description=None):
         if not description:
-            description = "END"
+            description = "Test Ended"
         timestamp = time.time() - self.test_start_time
         memory_diff, memory_end, memory_start = self.end_memory_measure()
-        self.test_events.append((timestamp, "{id} | {msg} | JS Memory start: {start}Kb | end: {end}Kb | diff: {diff}Kb".format(
-            id=self.id(),
-            msg=description,
-            start=int(memory_start/1024),
-            end=int(memory_end/1024),
-            diff=int(memory_diff/1024)
-        )))
+        self.test_events.append((timestamp,
+            self.id(),
+            str(int(memory_start/1024)),
+            str(int(memory_end/1024)),
+            str(int(memory_diff/1024)),
+            description,
+        ))
 
     def end_memory_measure(self):
         currentMemoryUsage = int(self.memory_usage())
@@ -110,10 +110,13 @@ class TauhkaTestCase(unittest.TestCase):
     def mark_memory_measure(self, description):
         timestamp = time.time() - self.test_start_time
         self.memory_usage_at_mark = int(self.memory_usage())
-        self.test_events.append((timestamp, "{id} | {msg}".format(
-            id=self.id(),
-            msg=description
-        )))
+        self.test_events.append((timestamp,
+            self.id(),
+            "-",
+            "-",
+            "-",
+            description
+        ))
 
     def diff_memory_measure(self):
         currentMemoryUsage = int(self.memory_usage())
@@ -122,13 +125,13 @@ class TauhkaTestCase(unittest.TestCase):
     def diff_memory_measure_and_report(self, msg=None):
         timestamp = time.time() - self.test_start_time
         memory_diff, memory_end, memory_start = self.diff_memory_measure()
-        self.test_events.append((timestamp, "{id} | {msg} | JS Memory start: {start}Kb | end: {end}Kb | diff: {diff}Kb".format(
-            id=self.id(),
-            msg=msg,
-            start=int(memory_start/1024),
-            end=int(memory_end/1024),
-            diff=int(memory_diff/1024)
-        )))
+        self.test_events.append((timestamp,
+            self.id(),
+            str(int(memory_start/1024)),
+            str(int(memory_end/1024)),
+            str(int(memory_diff/1024)),
+            msg,
+        ))
 
     def memory_usage(self):
         self.driver.execute_script("window.gc()")
@@ -141,84 +144,93 @@ class TauhkaTestCase(unittest.TestCase):
         self.logger.info(message)
 
     def run(self, result=None):
-        self.netlogfiles = []
         self.logger = logging.getLogger()
         self.logger.level = logging.INFO
         self.stream_handler = logging.StreamHandler(sys.stdout)
         self.logger.addHandler(self.stream_handler)
+        self.network_logs = []
+        self.console_logs = []
+
+        errors_before = len(result.errors)
+        failures_before = len(result.failures)
 
         super().run(result)
 
-        # analyze netlog
-        for logfile in self.netlogfiles:
-            print("")
-            print("======================================================================")
-            print("Test Report: " + self.id())
-            print("----------------------------------------------------------------------")
-            test_events_with_network = self.parse_netlog(logfile) + self.test_events
-            test_events_with_network = sorted(test_events_with_network, key=lambda evt: evt[0])
-            for event in test_events_with_network:
-                print("{time:8.3f} | {data}".format(time=event[0], data=event[1]))
+        if errors_before != len(result.errors) or failures_before != len(result.failures):
             print("\n")
+            print("======================================================================")
+            print("Test ({testname}) was a failure. ".format(testname=self.id()))
+            print("----------------------------------------------------------------------")
+            print("Console messages:")
+            for entry in self.console_logs:
+                print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
+            print("----------------------------------------------------------------------")
+            print("Network requests:")
+            for entry in self.network_logs:
+                print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
+            print("----------------------------------------------------------------------")
+            print("Tests and memory usage")
+            for entry in self.test_events:
+                print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
+            print("----------------------------------------------------------------------")
 
         self.logger.removeHandler(self.stream_handler)
 
     def tearDown(self):
+        # collect console logs
+        for row in self.driver.get_log('browser'):
+            self.console_logs.append((row['timestamp'], row['level'], row['message']))
+
+        # collect network logs
+        perfs = self.driver.get_log('performance')
+        for row in perfs:
+            if "message" in row.keys():
+                msg = json.loads(row['message'])['message']
+                if 'method' in msg.keys():
+                    if "Network.requestWillBeSent" == msg['method']:
+                        params = msg['params']
+                        timestamp = params['timestamp']
+                        requestId = str(params['requestId'])
+                        request = params['request']
+                        requestPostData = ""
+                        try:
+                            requestPostData = self.driver.execute_cdp_cmd('Network.getRequestPostData', {'requestId': requestId})
+                        except WebDriverException:
+                            pass
+                        self.network_logs.append((timestamp,
+                            requestId,
+                            "=>",
+                            request['method'],
+                            request['url'],
+                            str(requestPostData)
+                        ))
+                    if "Network.responseReceived" == msg['method']:
+                        params = msg['params']
+                        timestamp = params['timestamp']
+                        requestId = str(params['requestId'])
+                        response = params['response']
+                        status = response['status']
+                        statusText = response['statusText']
+                        body = ""
+                        if status > 299 and status != 304:
+                            try:
+                                body = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': requestId})
+                            except WebDriverException:
+                                pass
+                        self.network_logs.append((
+                            timestamp,
+                            requestId,
+                            "<=",
+                            str(status),
+                            statusText,
+                            str(body)
+                        ))
+
         if self.end_test:
             self.end_test()
+
         self.driver.quit()
         self.test_start_time = None
-
-    def parse_netlog(self, netlog):
-        retval = []
-        data = ""
-        with open(netlog, "r") as f:
-            data += f.read()
-        data = data.strip().rstrip(",")
-        try:
-            structure = json.loads(data + "]}")
-        except json.decoder.JSONDecodeError:
-            structure = json.loads(data)
-        first_time = -1
-        for event in structure['events']:
-            if first_time == -1:
-                first_time = int(event['time'])
-            if event['source']['type'] == 1:
-                if event['type'] == 166:
-                    header = event['params']['headers']
-                    headerdict = {}
-                    for line in header:
-                        if line.find(":") == 0:
-                            line = line[1:]
-                        (key, value) = line.split(":", 1)
-                        headerdict[key] = value.strip()
-                    actual_time = (int(event['time']) - first_time) / 1000
-                    retval.append(
-                        (
-                            actual_time,
-                            " => " + headerdict["method"] +
-                            " " + headerdict['scheme'] +
-                            " " + headerdict['authority'] +
-                            " " + headerdict['path']
-                        )
-                    )
-            if event['type'] == 101:
-                location = event['params']['location']
-                actual_time = (int(event['time']) - first_time) / 1000
-                retval.append((actual_time, " URL CHANGED " + location))
-            if event['type'] == 169:
-                header = event['params']['headers']
-                headerdict = {}
-                for line in header:
-                    try:
-                        (key, value) = line.split(":", 1)
-                        headerdict[key] = value
-                    except ValueError:
-                        pass
-                if "location" in headerdict.keys():
-                    actual_time = (int(event['time']) - first_time) / 1000
-                    retval.append((actual_time, "REDIRECTED TO " + headerdict["location"]))
-        return retval
 
     def elem_is_not_found(self, elemid):
         try:
@@ -277,6 +289,9 @@ class TauhkaTestCase(unittest.TestCase):
 
     def wait_until_visible_by_id(self, elemId):
         return self.wait.until(EC.visibility_of(self.find_element(elemId)))
+
+    def wait_until_hidden_by_id(self, elemId):
+        return self.wait.until(EC.invisibility_of_element_located((By.ID, elemId)))
 
     def wait_until_window_title(self, title):
         return self.wait.until(EC.title_is(title))
