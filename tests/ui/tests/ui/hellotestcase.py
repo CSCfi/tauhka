@@ -19,4 +19,4 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 class HelloWorldTestCase(TauhkaTestCase):
     def __init__(self, methodName='runTest'):
         super().__init__(methodName)
-        self.webdriver = "./chromedriver"
+        self.report_always = True

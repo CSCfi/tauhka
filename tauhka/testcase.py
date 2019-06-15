@@ -46,10 +46,56 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 
+class TauhkaMemoryMonitor(object):
+    def __init__(self, testcase, description, max_memory_diff):
+        self.testcase = testcase
+        self.memory_usage_at_start = None
+        self.description = description
+        self.max_memory_diff = max_memory_diff
+
+    def __enter__(self):
+        timestamp = time.time() - self.testcase.test_start_time
+        self.memory_usage_at_start = int(self.testcase.memory_usage())
+        self.testcase.test_events.append((
+            timestamp,
+            self.testcase.id(),
+            str(int(self.memory_usage_at_start/1024)),
+            "-",
+            "-",
+            self.description,
+            "-",
+            str(self.max_memory_diff)
+        ))
+
+    def __exit__(self, type, value, tb):
+        result = "FAILURE"
+        memory_result = "OK"
+        if tb is None:
+            result = "OK"
+        current_memory_usage = int(self.testcase.memory_usage())
+        memory_diff, memory_end, memory_start = current_memory_usage - self.memory_usage_at_start, current_memory_usage, self.memory_usage_at_start
+        timestamp = time.time() - self.testcase.test_start_time
+
+        if self.max_memory_diff < int(memory_diff/1024):
+            memory_result = "MEMORY_ISSUE"
+
+        self.testcase.test_events.append((
+            timestamp,
+            self.testcase.id(),
+            str(int(memory_start/1024)),
+            str(int(memory_end/1024)),
+            str(int(memory_diff/1024)),
+            self.description,
+            result,
+            memory_result
+        ))
+
+
 class TauhkaTestCase(unittest.TestCase):
     def __init__(self, methodName='runTest'):
         super().__init__(methodName)
         self.webdriver = "./chromedriver"
+        self.report_always = False
 
     def setUp(self):
         self.memory_usage_at_start = None
@@ -164,10 +210,16 @@ class TauhkaTestCase(unittest.TestCase):
 
         super().run(result)
 
-        if errors_before != len(result.errors) or failures_before != len(result.failures):
+        was_failure = (errors_before != len(result.errors) or failures_before != len(result.failures))
+        if self.report_always or was_failure:
             print("\n")
             print("======================================================================")
-            print("Test ({testname}) was a failure. ".format(testname=self.id()))
+            status = "OK"
+            if was_failure:
+                if errors_before != len(result.errors):
+                    status = "ERROR"
+                status = "FAILURE"
+            print("Test status ({testname}): {status}. ".format(testname=self.id(), status=status))
             print("----------------------------------------------------------------------")
             print("Console messages:")
             for entry in self.console_logs:

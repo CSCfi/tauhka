@@ -14,6 +14,7 @@
 import os
 
 from hellotestcase import HelloWorldTestCase
+from tauhka.testcase import TauhkaMemoryMonitor
 
 from views.form import HelloForm
 
@@ -30,7 +31,7 @@ class HelloWorldFormTest(HelloWorldTestCase):
 
     def test_1_send_message(self):
         self.start_test()
-        
+
         form = HelloForm(testcase=self)
 
         # ensure that the field is empty
@@ -43,8 +44,11 @@ class HelloWorldFormTest(HelloWorldTestCase):
         # ensure that the value was changed
         assert form.afield.get_attribute("value") == msg
 
-        # send the form data
-        form.submit()
+        with TauhkaMemoryMonitor(
+                testcase=self,
+                description="form.submit - memory usage max 200",
+                max_memory_diff=200) as monitor:
+            form.submit()
 
         # check that the form data is now in pre
         assert self.find_element("formpost").get_attribute("innerHTML") == msg

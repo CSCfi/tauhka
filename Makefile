@@ -16,3 +16,8 @@ uninstall:
 check: venv
 	@venv/bin/pycodestyle --show-source --show-pep8 tauhka
 	@cd tests/ui && make check
+
+clean:
+	@cd tests/ui && make clean
+
+recheck: clean check
