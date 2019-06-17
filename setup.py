@@ -4,9 +4,11 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+from tauhka import __version__; print(__version__)
+
 setuptools.setup(
     name="tauhka",
-    version="0.0.2",
+    version=__version__,
     python_requires='>=3',
     install_requires=['selenium'],
     author="CSC - IT Center for Science Ltd.",

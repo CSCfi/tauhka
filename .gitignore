@@ -2,3 +2,5 @@
 build
 dist
 venv
+*.bak
+*.pyc

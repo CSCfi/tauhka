@@ -5,4 +5,4 @@ addons:
     packages:
     - python@3
 script:
-- make check
+- make
