@@ -41,16 +41,18 @@ function usage() {
 }
 
 CURRENT_BRANCH=`git branch|grep "\*"|sed "s/\* //g"`
-if [[ ${CURRENT_BRANCH} != "master" ]]; then
-  echo "ERROR: this can be ran only on master branch."
+if [[ ${CURRENT_BRANCH} != "next" ]]; then
+  echo "ERROR: this can be ran only on next branch."
   usage
   exit 2
 fi
 
 echo
-echo "Lets ensure that we are in master branch"
+echo "Lets ensure that master and next branches are up to date."
+git pull
 git checkout master
 git pull
+git checkout next
 echo "..done"
 echo
 
@@ -83,12 +85,14 @@ read
 git push -u origin v${CURRENT_RELEASE}
 
 echo
-echo "Ensure that the next is rebased with master"
+echo "Merge next to master."
 git checkout master
 git pull
-git checkout -b next
+git merge next
+git push -u origin master
+git checkout next
 git pull
-git rebase master
+echo "..done"
 echo
 
 echo
@@ -97,5 +101,6 @@ sed -i ".bak" "s/__version__ = \"[0-9.]*\"/__version__ = \"${NEXT_RELEASE}\"/g" 
 echo "The next version has been set."
 echo
 
-git commit -a -m "Work started for next release v${NEXT_RELEASE}."
+git add tauhka/__init__.py
+git commit -a -m "Version number bump to v${NEXT_RELEASE}."
 git push -u origin next
