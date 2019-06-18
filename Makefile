@@ -20,4 +20,5 @@ check: venv
 clean:
 	@cd tests/ui && make clean
 
-recheck: clean check
+recheck:
+	@cd tests/ui && make recheck

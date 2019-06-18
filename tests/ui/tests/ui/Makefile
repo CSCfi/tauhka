@@ -22,3 +22,9 @@ clean:
 check: venv chromedriver
 	@venv/bin/pycodestyle --show-source --show-pep8 .
 	$(PYTHON_CMD) -m unittest discover
+
+recheck:
+	@rm -rf venv
+	@rm -rf __pycache__
+	@rm -rf views/__pycache__
+	@make check

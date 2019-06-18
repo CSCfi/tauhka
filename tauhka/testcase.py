@@ -35,6 +35,7 @@ import logging
 import unittest
 import time
 import json
+import base64
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -56,7 +57,7 @@ class TauhkaMemoryMonitor(object):
     def __enter__(self):
         timestamp = time.time() - self.testcase.test_start_time
         self.memory_usage_at_start = int(self.testcase.memory_usage())
-        self.testcase.test_events.append((
+        self.testcase.memory_logs.append((
             timestamp,
             self.testcase.id(),
             str(int(self.memory_usage_at_start/1024)),
@@ -79,7 +80,7 @@ class TauhkaMemoryMonitor(object):
         if self.max_memory_diff < int(memory_diff/1024):
             memory_result = "MEMORY_ISSUE"
 
-        self.testcase.test_events.append((
+        self.testcase.memory_logs.append((
             timestamp,
             self.testcase.id(),
             str(int(memory_start/1024)),
@@ -91,6 +92,79 @@ class TauhkaMemoryMonitor(object):
         ))
 
 
+class TauhkaNetworkMonitor(object):
+    def __init__(self, testcase, description, network_events):
+        self.testcase = testcase
+        self.network_monitor_start = None
+        self.description = description
+        self.network_events = network_events
+
+    def __enter__(self):
+        self.network_monitor_start = time.time() - self.testcase.test_start_time
+        # add current events to log, it will clear things for monitoring too
+        self.testcase.network_logs += self.testcase.collect_network_requests()
+
+    def __exit__(self, type, value, tb):
+        result = "FAILURE"
+        network_result = "OK"
+        if tb is None:
+            result = "OK"
+
+        timestamp = time.time() - self.testcase.test_start_time
+        max_tries = 10
+        tries = 0
+        network_requests = []
+        while self.network_events:
+            assert max_tries > tries, "Network traffic was incorrect."
+
+            network_events_new = self.testcase.collect_network_requests(fetch_body_always=True)
+            network_requests += network_events_new
+            self.testcase.network_logs += network_events_new
+
+            parsed_requests = {}
+
+            for req in network_requests:
+                request_timestamp = req[0]
+                request_id = req[1]
+                request_type = req[2]
+                if request_id not in parsed_requests.keys():
+                    parsed_requests[request_id] = {"request": None, "response": None}
+                if request_type == "=>":
+                    request_method = req[3]
+                    request_url = req[4]
+                    request_data = req[5]
+                    parsed_requests[request_id]["request"] = (request_method, request_url, request_data)
+                else:
+                    response_status = req[3]
+                    response_statusText = req[4]
+                    response_text = req[5]
+                    parsed_requests[request_id]["response"] = (req[3], req[5])
+
+            for key in parsed_requests.keys():
+                event = self.network_events[0]
+                found_event = parsed_requests[key]
+                is_ok = True
+                for key in event.keys():
+                    ev = event[key]
+                    ev_count = len(event[key])
+                    ev_found = found_event[key]
+                    ev_found_count = len(found_event[key])
+
+                    is_ok = ev_count == ev_found_count
+                    if not is_ok:
+                        break
+                    for i in range(ev_count):
+                        is_ok = ev[i] == ev_found[i]
+                        if not is_ok:
+                            break
+                if is_ok:
+                    self.network_events.pop(0)
+
+            tries += 1
+            if self.network_events:
+                time.sleep(0.5)
+
+
 class TauhkaTestCase(unittest.TestCase):
     def __init__(self, methodName='runTest'):
         super().__init__(methodName)
@@ -99,7 +173,7 @@ class TauhkaTestCase(unittest.TestCase):
 
     def setUp(self):
         self.memory_usage_at_start = None
-        self.test_events = []
+        self.memory_logs = []
         self.start_time = int(time.time())
 
         caps = DesiredCapabilities.CHROME.copy()
@@ -120,7 +194,8 @@ class TauhkaTestCase(unittest.TestCase):
         opts.add_argument("--enable-precise-memory-info")
         self.test_start_time = time.time() + 1.25
         self.driver = webdriver.Chrome(self.webdriver, options=opts, desired_capabilities=caps)
-        self.wait = WebDriverWait(self.driver, 10)
+        self.driver.implicitly_wait(10)
+        self.wait = WebDriverWait(self.driver, 30)
 
     def with_memory_usage(self, description, fn, *args, **kwargs):
         self.mark_memory_measure(description)
@@ -132,7 +207,7 @@ class TauhkaTestCase(unittest.TestCase):
             description = "Test Started"
         timestamp = time.time() - self.test_start_time
         self.memory_usage_at_start = int(self.memory_usage())
-        self.test_events.append((
+        self.memory_logs.append((
             timestamp,
             self.id(),
             "-",
@@ -146,7 +221,7 @@ class TauhkaTestCase(unittest.TestCase):
             description = "Test Ended"
         timestamp = time.time() - self.test_start_time
         memory_diff, memory_end, memory_start = self.end_memory_measure()
-        self.test_events.append((
+        self.memory_logs.append((
             timestamp,
             self.id(),
             str(int(memory_start/1024)),
@@ -162,7 +237,7 @@ class TauhkaTestCase(unittest.TestCase):
     def mark_memory_measure(self, description):
         timestamp = time.time() - self.test_start_time
         self.memory_usage_at_mark = int(self.memory_usage())
-        self.test_events.append((
+        self.memory_logs.append((
             timestamp,
             self.id(),
             "-",
@@ -178,7 +253,7 @@ class TauhkaTestCase(unittest.TestCase):
     def diff_memory_measure_and_report(self, msg=None):
         timestamp = time.time() - self.test_start_time
         memory_diff, memory_end, memory_start = self.diff_memory_measure()
-        self.test_events.append((
+        self.memory_logs.append((
             timestamp,
             self.id(),
             str(int(memory_start/1024)),
@@ -230,17 +305,20 @@ class TauhkaTestCase(unittest.TestCase):
                 print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
             print("----------------------------------------------------------------------")
             print("Tests and memory usage")
-            for entry in self.test_events:
+            for entry in self.memory_logs:
                 print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
             print("----------------------------------------------------------------------")
 
         self.logger.removeHandler(self.stream_handler)
 
-    def tearDown(self):
-        # collect console logs
+    def collect_javascript_console(self):
+        retval = []
         for row in self.driver.get_log('browser'):
-            self.console_logs.append((row['timestamp'], row['level'], row['message']))
+            retval.append((row['timestamp'], row['level'], row['message']))
+        return retval
 
+    def collect_network_requests(self, fetch_body_always=False):
+        retval = []
         # collect network logs
         perfs = self.driver.get_log('performance')
         for row in perfs:
@@ -255,9 +333,13 @@ class TauhkaTestCase(unittest.TestCase):
                         requestPostData = ""
                         try:
                             requestPostData = self.driver.execute_cdp_cmd('Network.getRequestPostData', {'requestId': requestId})
+                            if isinstance(requestPostData, dict):
+                                if "postData" in requestPostData:
+                                    requestPostData = requestPostData["postData"]
+
                         except WebDriverException:
                             pass
-                        self.network_logs.append((
+                        retval.append((
                             timestamp,
                             requestId,
                             "=>",
@@ -273,12 +355,16 @@ class TauhkaTestCase(unittest.TestCase):
                         status = response['status']
                         statusText = response['statusText']
                         body = ""
-                        if status > 299 and status != 304:
+                        if fetch_body_always or (status > 299 and status != 304):
                             try:
                                 body = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': requestId})
                             except WebDriverException:
                                 pass
-                        self.network_logs.append((
+                            if body["base64Encoded"]:
+                                body = base64.b64decode(body["body"])
+                            else:
+                                body = body["body"]
+                        retval.append((
                             timestamp,
                             requestId,
                             "<=",
@@ -286,6 +372,11 @@ class TauhkaTestCase(unittest.TestCase):
                             statusText,
                             str(body)
                         ))
+        return retval
+
+    def tearDown(self):
+        self.console_logs += self.collect_javascript_console()
+        self.network_logs += self.collect_network_requests()
 
         if self.end_test:
             self.end_test()
@@ -366,6 +457,9 @@ class TauhkaTestCase(unittest.TestCase):
     def wait_until_clickable_by_class(self, parent, class_name):
         return WebDriverWait(parent, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, class_name)))
 
+    def wait_until_innerhtml(self, elemId, html):
+        return WebDriverWait(self.driver, 4).until(element_has_innerhtml((By.ID, elemId), html))
+
     def clear_text(self, elemId):
         self.find_element(elemId).clear()
 
@@ -392,3 +486,16 @@ class TauhkaTestCase(unittest.TestCase):
 
     def open_url(self, url):
         self.driver.get(url)
+
+
+class element_has_innerhtml(object):
+    def __init__(self, locator, html):
+        self.locator = locator
+        self.html = html
+
+    def __call__(self, driver):
+        element = driver.find_element(*self.locator)
+        if self.html in element.get_attribute("innerHTML"):
+            return element
+        else:
+            return False

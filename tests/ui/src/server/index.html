@@ -1,0 +1,63 @@
+<html>
+    <head>
+        <title>Hello RPC</title>
+    </head>
+    <body>
+        <h1>This is a title</h1>
+        <p>This is a paragraph</p>
+
+        <form id="theform">
+            <label for="afield">A field</label>
+            <input type="text" name="afield" />
+            <input type="submit" value="Send" />
+            <input type="reset" value="Reset form" />
+        </form>
+        
+        <pre id="formpost"></pre>
+
+        <p id="status_msg"></p>
+
+        <script type="text/javascript">
+            let theform = document.getElementById("theform");
+            let formpost = document.getElementById("formpost");
+            let inputfield = document.querySelector("input[name=afield]");
+            let status_msg = document.getElementById("status_msg");
+
+            function processForm(e) {
+                e.preventDefault();
+                console.log("Form was submitted");
+                makeRequest("POST", "http://127.0.0.1:8000/echo", inputfield.value, function(statusCode, responseText) {
+                    console.log("Response - Status: " + statusCode + " - Text: " + responseText)
+                })
+                inputfield.value = "";
+                return false;
+            }
+
+            function makeRequest(method, url, payload, callback) {
+                var xhr = new XMLHttpRequest();
+                xhr.onload = function() {
+                    console.log("onload:" + this.responseText)
+                    status_msg.innerText = this.responseText
+                    if (xhr.readyState == xhr.DONE) {
+                        callback(xhr.status, this.responseText)
+                    }
+                }
+                xhr.onreadystatechange = function() {
+                    console.log("onreadystatechange:" + this.readyState)
+                }
+                xhr.onabort = function() {
+                    console.log("onabort")
+                }
+                xhr.onerror = function() {
+                    console.log("onerror")
+                }
+                xhr.open(method, url);
+                xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                
+                xhr.send("payload=" + payload);
+            }
+
+            theform.addEventListener('submit', processForm);
+        </script>
+    </body>
+</html>
