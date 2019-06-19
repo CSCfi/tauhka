@@ -22,3 +22,11 @@ clean:
 
 recheck:
 	@cd tests/ui && make recheck
+
+security:
+	dependency-check --format JSON --format HTML --scan . --enableExperimental --disableOssIndex --prettyPrint --failOnCVSS 1
+	open dependency-check-report.html
+
+dependency-check:
+	brew install dependency-check
+

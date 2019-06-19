@@ -5,3 +5,5 @@ venv
 *.bak
 *.pyc
 .vscode
+*.html
+*.json
