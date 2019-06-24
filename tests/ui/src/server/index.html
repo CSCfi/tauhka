@@ -26,7 +26,7 @@
             function processForm(e) {
                 e.preventDefault();
                 console.log("Form was submitted");
-                makeRequest("POST", "http://127.0.0.1:8000/echo", inputfield.value, function(statusCode, responseText) {
+                makeRequest("POST", "http://127.0.0.1:8012/echo", inputfield.value, function(statusCode, responseText) {
                     console.log("Response - Status: " + statusCode + " - Text: " + responseText)
                 })
                 inputfield.value = "";

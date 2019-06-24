@@ -146,10 +146,15 @@ class TauhkaNetworkMonitor(object):
                 is_ok = True
                 for key in event.keys():
                     ev = event[key]
-                    ev_count = len(event[key])
+                    if ev:
+                        ev_count = len(event[key])
+                    else:
+                        ev_count = 0
                     ev_found = found_event[key]
-                    ev_found_count = len(found_event[key])
-
+                    if ev_found:
+                        ev_found_count = len(found_event[key])
+                    else:
+                        ev_found_count = 0
                     is_ok = ev_count == ev_found_count
                     if not is_ok:
                         break
@@ -360,10 +365,13 @@ class TauhkaTestCase(unittest.TestCase):
                                 body = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': requestId})
                             except WebDriverException:
                                 pass
-                            if body["base64Encoded"]:
-                                body = base64.b64decode(body["body"])
-                            else:
-                                body = body["body"]
+                            if isinstance(body, dict):
+                                if "base64Encoded" in body:
+                                    if body["base64Encoded"]:
+                                        body = base64.b64decode(body["body"])
+                            if isinstance(body, dict):
+                                if "body" in body:
+                                    body = body["body"]
                         retval.append((
                             timestamp,
                             requestId,

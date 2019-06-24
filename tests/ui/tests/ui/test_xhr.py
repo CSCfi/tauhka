@@ -22,7 +22,7 @@ from views.form import HelloForm
 class HelloWorldXHRTest(HelloWorldTestCase):
     def start_test(self):
         self.start_memory_measure()
-        self.open_url("http://127.0.0.1:8000")
+        self.open_url("http://127.0.0.1:8012")
         self.wait_until_window_title("Hello RPC")
 
     def end_test(self):
@@ -46,7 +46,7 @@ class HelloWorldXHRTest(HelloWorldTestCase):
 
         expected_traffic = [
             {
-                "request": ("POST", "http://127.0.0.1:8000/echo", "payload={msg}".format(msg=msg)),
+                "request": ("POST", "http://127.0.0.1:8012/echo", "payload={msg}".format(msg=msg)),
                 "response": ('200', msg)
             }
         ]

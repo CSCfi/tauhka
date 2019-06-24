@@ -55,5 +55,5 @@ api.req_options.auto_parse_form_urlencoded = True
 
 
 if __name__ == '__main__':
-    with make_server('', 8000, api) as httpd:
+    with make_server('', 8012, api) as httpd:
         httpd.serve_forever()

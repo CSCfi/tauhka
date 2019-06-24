@@ -21,6 +21,7 @@ clean:
 
 check: venv chromedriver
 	@venv/bin/pycodestyle --show-source --show-pep8 .
+	cd ../.. && make run &
 	$(PYTHON_CMD) -m unittest discover
 
 recheck:
