@@ -16,7 +16,11 @@ from tauhka.testcase import TauhkaTestCase
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 
-class HelloWorldTestCase(TauhkaTestCase):
+class HelloWorldTestCaseReportAlways(TauhkaTestCase):
     def __init__(self, methodName='runTest'):
         super().__init__(methodName)
         self.report_always = True
+
+
+class HelloWorldTestCase(TauhkaTestCase):
+    pass

@@ -14,7 +14,7 @@ uninstall:
 	pip3 uninstall tauhka
 
 check: venv
-	@venv/bin/pycodestyle --show-source --show-pep8 tauhka
+	@./venv/bin/pycodestyle --show-source --show-pep8 tauhka
 	@cd tests/ui && make check
 
 clean:

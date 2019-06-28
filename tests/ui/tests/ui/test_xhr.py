@@ -13,7 +13,7 @@
 
 import os
 
-from hellotestcase import HelloWorldTestCase
+from hellotestcase import HelloWorldTestCase, HelloWorldTestCaseReportAlways
 from tauhka.testcase import TauhkaMemoryMonitor, TauhkaNetworkMonitor
 
 from views.form import HelloForm
@@ -62,3 +62,7 @@ class HelloWorldXHRTest(HelloWorldTestCase):
 
         # check that the form data is now in pre
         self.wait_until_innerhtml("status_msg", msg)
+
+
+class HelloWorldXHRTestReport(HelloWorldXHRTest, HelloWorldTestCaseReportAlways):
+    pass

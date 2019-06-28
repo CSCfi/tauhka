@@ -173,34 +173,43 @@ class TauhkaNetworkMonitor(object):
 class TauhkaTestCase(unittest.TestCase):
     def __init__(self, methodName='runTest'):
         super().__init__(methodName)
-        self.webdriver = "./chromedriver"
+        self.webdriver = os.environ.get("TAUHKA_WEBDRIVER", "./chromedriver")
+        self.browser = os.environ.get("TAUHKA_BROWSER", "chrome")
+        self.time_adjust = float(os.environ.get("TAUHKA_TIMEOFFSET", 1.25))
+        self.default_wait = int(os.environ.get("TAUHKA_DEFAULT_WAIT", 10))
+        self.maximum_wait = int(os.environ.get("TAUHKA_MAX_WAIT", 30))
+        self.extra_logging = bool(os.environ.get("TAUHKA_EXTRA_LOGS", True))
         self.report_always = False
 
     def setUp(self):
         self.memory_usage_at_start = None
         self.memory_logs = []
         self.start_time = int(time.time())
-
-        caps = DesiredCapabilities.CHROME.copy()
-        caps['loggingPrefs'] = {
-            'browser': 'ALL',
-            'performance': 'ALL',
-        }
-        opts = webdriver.ChromeOptions()
-        opts.add_experimental_option('perfLoggingPrefs', {
-            'enableNetwork': True,
-            'enablePage': True,
-            'traceCategories': "browser,devtools.timeline,devtools"
-        })
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--js-flags=--expose-gc")
-        if "TEST_DEBUG" not in os.environ.keys():
-            opts.add_argument("--headless")
-        opts.add_argument("--enable-precise-memory-info")
-        self.test_start_time = time.time() + 1.25
-        self.driver = webdriver.Chrome(self.webdriver, options=opts, desired_capabilities=caps)
-        self.driver.implicitly_wait(10)
-        self.wait = WebDriverWait(self.driver, 30)
+        self.test_start_time = time.time() + self.time_adjust
+        if "chrome" in self.browser:
+            caps = DesiredCapabilities.CHROME.copy()
+            if self.extra_logging:
+                caps['loggingPrefs'] = {
+                    'browser': 'ALL',
+                    'performance': 'ALL',
+                }
+            opts = webdriver.ChromeOptions()
+            if self.extra_logging:
+                opts.add_experimental_option('perfLoggingPrefs', {
+                    'enableNetwork': True,
+                    'enablePage': True,
+                    'traceCategories': "browser,devtools.timeline,devtools"
+                })
+                opts.add_argument("--js-flags=--expose-gc")
+                opts.add_argument("--enable-precise-memory-info")
+                opts.add_argument("--no-sandbox")
+            if "TEST_DEBUG" not in os.environ.keys():
+                opts.add_argument("--headless")
+            self.driver = webdriver.Chrome(self.webdriver, options=opts, desired_capabilities=caps)
+        else:
+            self.driver = webdriver.Firefox(self.webdriver)
+        self.driver.implicitly_wait(self.default_wait)
+        self.wait = WebDriverWait(self.driver, self.maximum_wait)
 
     def with_memory_usage(self, description, fn, *args, **kwargs):
         self.mark_memory_measure(description)
@@ -208,6 +217,8 @@ class TauhkaTestCase(unittest.TestCase):
         self.diff_memory_measure_and_report(description)
 
     def start_memory_measure(self, description=None):
+        if not self.extra_logging:
+            return
         if not description:
             description = "Test Started"
         timestamp = time.time() - self.test_start_time
@@ -222,6 +233,8 @@ class TauhkaTestCase(unittest.TestCase):
         ))
 
     def end_memory_measure_and_report(self, description=None):
+        if not self.extra_logging:
+            return
         if not description:
             description = "Test Ended"
         timestamp = time.time() - self.test_start_time
@@ -240,6 +253,8 @@ class TauhkaTestCase(unittest.TestCase):
         return currentMemoryUsage - self.memory_usage_at_start, currentMemoryUsage, self.memory_usage_at_start
 
     def mark_memory_measure(self, description):
+        if not self.extra_logging:
+            return
         timestamp = time.time() - self.test_start_time
         self.memory_usage_at_mark = int(self.memory_usage())
         self.memory_logs.append((
@@ -256,6 +271,8 @@ class TauhkaTestCase(unittest.TestCase):
         return currentMemoryUsage - self.memory_usage_at_mark, currentMemoryUsage, self.memory_usage_at_mark
 
     def diff_memory_measure_and_report(self, msg=None):
+        if not self.extra_logging:
+            return
         timestamp = time.time() - self.test_start_time
         memory_diff, memory_end, memory_start = self.diff_memory_measure()
         self.memory_logs.append((
@@ -268,13 +285,15 @@ class TauhkaTestCase(unittest.TestCase):
         ))
 
     def memory_usage(self):
+        if not self.extra_logging:
+            return 0
         self.driver.execute_script("window.gc()")
         return self.driver.execute_script("return window.performance.memory.usedJSHeapSize")
 
     def close(self):
         self.driver.close()
 
-    def print(self, message):
+    def write_to_log(self, message):
         self.logger.info(message)
 
     def run(self, result=None):
@@ -290,40 +309,47 @@ class TauhkaTestCase(unittest.TestCase):
 
         super().run(result)
 
-        was_failure = (errors_before != len(result.errors) or failures_before != len(result.failures))
-        if self.report_always or was_failure:
-            print("\n")
-            print("======================================================================")
-            status = "OK"
-            if was_failure:
-                if errors_before != len(result.errors):
-                    status = "ERROR"
-                status = "FAILURE"
-            print("Test status ({testname}): {status}. ".format(testname=self.id(), status=status))
-            print("----------------------------------------------------------------------")
-            print("Console messages:")
-            for entry in self.console_logs:
-                print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
-            print("----------------------------------------------------------------------")
-            print("Network requests:")
-            for entry in self.network_logs:
-                print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
-            print("----------------------------------------------------------------------")
-            print("Tests and memory usage")
-            for entry in self.memory_logs:
-                print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
-            print("----------------------------------------------------------------------")
+        if self.extra_logging:
+            was_failure = (errors_before != len(result.errors) or failures_before != len(result.failures))
+            if self.report_always or was_failure:
+                print("\n")
+                print("======================================================================")
+                status = "OK"
+                if was_failure:
+                    if errors_before != len(result.errors):
+                        status = "ERROR"
+                    status = "FAILURE"
+                print("Test status ({testname}): {status}. ".format(testname=self.id(), status=status))
+                print("----------------------------------------------------------------------")
+                if self.console_logs:
+                    print("Console messages:")
+                    for entry in self.console_logs:
+                        print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
+                    print("")
+                if self.network_logs:
+                    print("Network requests:")
+                    for entry in self.network_logs:
+                        print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
+                    print("")
+                if self.console_logs:
+                    print("Tests and memory usage")
+                    for entry in self.memory_logs:
+                        print("{time:10.3f}".format(time=entry[0]), "\t".join(entry[1:]))
 
         self.logger.removeHandler(self.stream_handler)
 
     def collect_javascript_console(self):
         retval = []
+        if "chrome" not in self.browser:
+            return retval
         for row in self.driver.get_log('browser'):
             retval.append((row['timestamp'], row['level'], row['message']))
         return retval
 
     def collect_network_requests(self, fetch_body_always=False):
         retval = []
+        if "chrome" not in self.browser or not self.extra_logging:
+            return retval
         # collect network logs
         perfs = self.driver.get_log('performance')
         for row in perfs:
@@ -383,14 +409,18 @@ class TauhkaTestCase(unittest.TestCase):
         return retval
 
     def tearDown(self):
-        self.console_logs += self.collect_javascript_console()
-        self.network_logs += self.collect_network_requests()
+        if self.extra_logging:
+            self.console_logs += self.collect_javascript_console()
+            self.network_logs += self.collect_network_requests()
 
         if self.end_test:
             self.end_test()
 
         self.driver.quit()
         self.test_start_time = None
+
+    def end_test(self):
+        pass
 
     def elem_is_not_found(self, elemid):
         try:

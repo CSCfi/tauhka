@@ -4,7 +4,8 @@ SHELL:=/bin/bash
 all: venv
 
 run: venv
-	$(PYTHON_CMD) ./src/server/server.py
+	@$(PYTHON_CMD) ./src/server/server.py > /dev/null 2>&1
+	@sleep 2
 
 stop:
 	-@ps a | grep src/server/server.py | grep -v grep | awk '{ print $$1 }' | xargs -I{} kill {}
