@@ -10,7 +10,7 @@ setuptools.setup(
     name="tauhka",
     version=__version__,
     python_requires='>=3',
-    install_requires=['selenium'],
+    install_requires=['selenium==3.14'],
     author="CSC - IT Center for Science Ltd.",
     author_email="servicedesk@csc.fi",
     description="Tauhka is a web application testing framework",

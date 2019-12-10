@@ -189,7 +189,7 @@ class TauhkaTestCase(unittest.TestCase):
         if "chrome" in self.browser:
             caps = DesiredCapabilities.CHROME.copy()
             if self.extra_logging:
-                caps['loggingPrefs'] = {
+                caps['goog:loggingPrefs'] = {
                     'browser': 'ALL',
                     'performance': 'ALL',
                 }
