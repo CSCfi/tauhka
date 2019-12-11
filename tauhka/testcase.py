@@ -193,6 +193,7 @@ class TauhkaTestCase(unittest.TestCase):
                     'browser': 'ALL',
                     'performance': 'ALL',
                 }
+                caps['loggingPrefs'] = caps['goog:loggingPrefs']
             opts = webdriver.ChromeOptions()
             if self.extra_logging:
                 opts.add_experimental_option('perfLoggingPrefs', {
@@ -486,6 +487,9 @@ class TauhkaTestCase(unittest.TestCase):
     def wait_until_window_title(self, title):
         return self.wait.until(EC.title_is(title))
 
+    def wait_until_window_title_contains(self, title):
+        return self.wait.until(EC.title_contains(title))
+
     def wait_until_located_by_id(self, elemId):
         return self.wait.until(EC.presence_of_element_located((By.ID, elemId)))
 
@@ -524,6 +528,9 @@ class TauhkaTestCase(unittest.TestCase):
 
     def open_url(self, url):
         self.driver.get(url)
+
+    def get_url(self):
+        return self.driver.current_url
 
 
 class element_has_innerhtml(object):
