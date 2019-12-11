@@ -529,6 +529,9 @@ class TauhkaTestCase(unittest.TestCase):
     def open_url(self, url):
         self.driver.get(url)
 
+    def get_url(self):
+        return self.driver.current_url
+
 
 class element_has_innerhtml(object):
     def __init__(self, locator, html):
