@@ -1,3 +1,16 @@
+################################################################
+# This file is part of Tauhka project.
+#
+# License: MIT
+#
+# Author(s):
+#     Juhapekka Piiroinen <juhapekka.piiroinen@criticalforce.fi>
+#     Juhapekka Piiroinen <juhapekka.piiroinen@csc.fi>
+#
+# Copyright (c) 2020 Critical Force Oy
+# Copyright (c) 2019 CSC - IT Center for Science Ltd.
+# All Rights Reserved.
+################################################################
 PYTHON_CMD:=source venv/bin/activate && python3
 SHELL:=/bin/bash
 

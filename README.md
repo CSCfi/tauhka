@@ -13,5 +13,6 @@ Following extra reports:
 MIT license
 
 ## Copyright
+Copyright (c) 2020 Critical Force Oy
 Copyright (c) 2019 CSC - IT Center for Science Ltd.
 All Rights Reserved.
